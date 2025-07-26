@@ -4,9 +4,19 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 9000;
+const admin = require("firebase-admin");
 
 app.use(cors());
 app.use(express.json());
+
+
+
+const serviceAccount = require("./red--aid-firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rydkrvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -28,7 +38,31 @@ async function run() {
     );
 
     const userCollection = client.db("redAid").collection("users");
+    const donationRequestCollection = client.db("redAid").collection("donationRequests");
 
+
+
+    /****** middleware *******/
+
+    const varifyFBToken = async (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).send({ message: "Unauthorized Access1" });
+      }
+
+      const token = authHeader.split(" ")[1];
+      if (!token) {
+        return res.status(401).send({ message: "Unauthorized Access2" });
+      }
+
+      try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.decoded = decoded;
+        next();
+      } catch (error) {
+        return res.status(403).send({ message: "Forbidden Access3" });
+      }
+    };
 
 
     /****** user api *******/
@@ -40,7 +74,7 @@ async function run() {
     })
 
     //get user role
-    app.get("/users/:email/role", async (req, res) => {
+    app.get("/users/:email/role", varifyFBToken, async (req, res) => {
         const email = req.params.email;
         const query = { email };
 
@@ -60,6 +94,13 @@ async function run() {
         }
     })
 
+    app.get("/users/:email", varifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const result = await userCollection.findOne(query);
+      res.send(result);
+    });
+
 
     // add user after login/register
     app.post("/users", async (req, res) => {
@@ -69,6 +110,21 @@ async function run() {
     });
 
 
+
+    /****** donation request api *******/
+
+    app.post("/donation-requests", varifyFBToken, async (req, res) => {
+        const donationRequest = req.body;
+        // increment donationrequest count in users collection
+        const filter = { email: req.decoded.email };
+        const updateDoc = {
+          $inc: { donationRequest: 1 },
+        };
+        await userCollection.updateOne(filter, updateDoc);
+
+        const result = await donationRequestCollection.insertOne(donationRequest);
+        res.send(result);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
