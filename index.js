@@ -1,21 +1,14 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 9000;
 const admin = require("firebase-admin");
+const serviceAccount = require("./red--aid-firebase-admin-key.json");
 
 app.use(cors());
 app.use(express.json());
-
-
-
-const serviceAccount = require("./red--aid-firebase-admin-key.json");
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rydkrvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -27,6 +20,10 @@ const client = new MongoClient(uri, {
     strict: true,
     deprecationErrors: true,
   },
+});
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 });
 
 async function run() {
@@ -49,7 +46,7 @@ async function run() {
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return res.status(401).send({ message: "Unauthorized Access1" });
       }
-
+      
       const token = authHeader.split(" ")[1];
       if (!token) {
         return res.status(401).send({ message: "Unauthorized Access2" });
@@ -64,6 +61,14 @@ async function run() {
       }
     };
 
+    const varifyEmail = async (req, res, next) => {
+        if(req.decoded.email == req.body?.email || req.decoded.email == req.query?.email || req.decoded.email == req.params?.email) {
+            next();
+        } else {
+            return res.status(403).send({ message: "Forbidden Access4" });
+        }
+    };
+
 
     /****** user api *******/
 
@@ -74,7 +79,7 @@ async function run() {
     })
 
     //get user role
-    app.get("/users/:email/role", varifyFBToken, async (req, res) => {
+    app.get("/users/:email/role", varifyFBToken, varifyEmail, async (req, res) => {
         const email = req.params.email;
         const query = { email };
 
@@ -113,6 +118,25 @@ async function run() {
 
     /****** donation request api *******/
 
+    // 3 recent donation requests
+    app.get("/donation-requests", varifyFBToken, async (req, res) => {
+        const email = req.query?.email;
+        const limit = parseInt(req.query?.limit);
+        const query = email ? { requesterEmail:email } : {};
+        const result = await donationRequestCollection
+          .find(query)
+          .limit(limit)
+          .toArray();
+        res.send(result);
+    });
+
+    app.get("/donation-requests/:id", varifyFBToken, async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await donationRequestCollection.findOne(query);
+        res.send(result);
+    });
+
     app.post("/donation-requests", varifyFBToken, async (req, res) => {
         const donationRequest = req.body;
         // increment donationrequest count in users collection
@@ -125,6 +149,35 @@ async function run() {
         const result = await donationRequestCollection.insertOne(donationRequest);
         res.send(result);
     });
+
+    app.patch("/donation-requests/:id", varifyFBToken, async (req, res) => {
+        const id = req.params.id;
+        const updateDoc = req.body;
+        const query = { _id: new ObjectId(id) };
+        const result = await donationRequestCollection.updateOne(query, { $set: updateDoc });
+        res.send(result);
+    })
+
+    app.patch("/donation/:id", varifyFBToken, async (req, res) => {
+        const id = req.params.id;
+        const status = req.body.status;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: status,
+          },
+        };
+        const result = await donationRequestCollection.updateOne(query, updateDoc);
+        res.send(result);
+    });
+
+    app.delete("/donation-requests/:id", varifyFBToken, async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await donationRequestCollection.deleteOne(query);
+        res.send(result);
+    });
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
