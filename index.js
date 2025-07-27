@@ -44,12 +44,12 @@ async function run() {
     const varifyFBToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).send({ message: "Unauthorized Access1" });
+        return res.status(401).send({ message: "Unauthorized Access" });
       }
       
       const token = authHeader.split(" ")[1];
       if (!token) {
-        return res.status(401).send({ message: "Unauthorized Access2" });
+        return res.status(401).send({ message: "Unauthorized Access" });
       }
 
       try {
@@ -57,7 +57,7 @@ async function run() {
         req.decoded = decoded;
         next();
       } catch (error) {
-        return res.status(403).send({ message: "Forbidden Access3" });
+        return res.status(403).send({ message: "Forbidden Access" });
       }
     };
 
@@ -65,17 +65,44 @@ async function run() {
         if(req.decoded.email == req.body?.email || req.decoded.email == req.query?.email || req.decoded.email == req.params?.email) {
             next();
         } else {
-            return res.status(403).send({ message: "Forbidden Access4" });
+            return res.status(403).send({ message: "Forbidden Access" });
         }
+    };
+
+    const varifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (!user || user?.role !== "admin") {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      next();
     };
 
 
     /****** user api *******/
 
     // get all users
-    app.get("/users", async (req, res) => {
-      const result = await userCollection.find().toArray();
-      res.send(result);
+    app.get("/users", varifyFBToken, varifyAdmin, async (req, res) => {
+        const status = req.query?.status; // optional
+        const page = parseInt(req.query?.page) || 1;
+        const limit = parseInt(req.query?.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const query = status ? { status } : {};
+        const total = await userCollection.countDocuments(query);
+        const pages = Math.ceil(total / limit);
+        const result = await userCollection
+          .find(query)
+          .sort({ createdAt: -1 }) // recent first
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+        res.send({
+          users: result,
+          total,
+          pages,
+        });
     })
 
     //get user role
@@ -106,11 +133,20 @@ async function run() {
       res.send(result);
     });
 
-
     // add user after login/register
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.patch("/users/:id", varifyFBToken, async (req, res) => {
+      const id = req.params.id;
+      const payload = req.body;
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: payload }
+      );
       res.send(result);
     });
 
