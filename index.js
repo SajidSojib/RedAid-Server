@@ -119,15 +119,32 @@ async function run() {
     /****** donation request api *******/
 
     // 3 recent donation requests
+    // all donation with pegination
     app.get("/donation-requests", varifyFBToken, async (req, res) => {
         const email = req.query?.email;
-        const limit = parseInt(req.query?.limit);
+        const status = req.query.status; // optional
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query?.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const query = email ? { requesterEmail:email } : {};
+        if (status) {
+          query.status = status;
+        }
+        const total = await donationRequestCollection.countDocuments(query);
+        const pages = Math.ceil(total / limit);
+
         const result = await donationRequestCollection
           .find(query)
+          .sort({ createdAt: -1 }) // recent first
+          .skip(skip)
           .limit(limit)
           .toArray();
-        res.send(result);
+        res.send({
+          donations: result,
+          total,
+          pages,
+        });
     });
 
     app.get("/donation-requests/:id", varifyFBToken, async (req, res) => {
