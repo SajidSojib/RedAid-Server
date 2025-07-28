@@ -36,6 +36,7 @@ async function run() {
 
     const userCollection = client.db("redAid").collection("users");
     const donationRequestCollection = client.db("redAid").collection("donationRequests");
+    const blogCollection = client.db("redAid").collection("blogs");
 
 
 
@@ -229,6 +230,57 @@ async function run() {
         const query = { _id: new ObjectId(id) };
         const result = await donationRequestCollection.deleteOne(query);
         res.send(result);
+    });
+
+
+
+    /****** blogs api *******/
+
+    app.get("/blogs", async (req, res) => {
+      const { search = "", status, category, page = 1, limit = 6 } = req.query;
+      const skip = (page - 1) * limit;
+
+      const query = {
+        ...(search && { title: { $regex: search, $options: "i" } }),
+        ...(status && { status }),
+        ...(category && { category }),
+      };
+
+      const totalBlogs = await blogCollection.countDocuments(query);
+      const totalPages = Math.ceil(totalBlogs / limit);
+      const blogs = await blogCollection
+        .find(query)
+        .skip(skip)
+        .limit(Number(limit))
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.send({
+        blogs,
+        totalPages
+      });
+    });
+
+    app.post("/blogs", async (req, res) => {
+      const blog = req.body;
+      const result = await blogCollection.insertOne(blog);
+      res.send(result);
+    });
+
+    app.patch("/blogs/:id/:status", async (req, res) => {
+      const id = req.params.id;
+      const status = req.params.status;
+      const result = await blogCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status } }
+      );
+      res.send(result);
+    });
+
+    app.delete("/blogs/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await blogCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
     });
 
   } finally {
