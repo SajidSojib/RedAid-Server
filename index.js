@@ -192,7 +192,7 @@ async function run() {
 
     // 3 recent donation requests
     // all donation with pegination
-    app.get("/donation-requests", varifyFBToken, async (req, res) => {
+    app.get("/donation-requests",varifyFBToken, async (req, res) => {
         const email = req.query?.email;
         const status = req.query.status; // optional
         const page = parseInt(req.query.page) || 1;
@@ -243,6 +243,15 @@ async function run() {
         const id = req.params.id;
         const updateDoc = req.body;
         const query = { _id: new ObjectId(id) };
+        if(updateDoc?.donorEmail) {
+          const filter = { email: updateDoc?.donorEmail };
+          console.log(filter);
+          const incrementDon = {
+            $inc: { donations: 1 },
+            $set: { lastDonation: new Date().toISOString().split("T")[0] },
+          };
+          await userCollection.updateOne(filter, incrementDon);
+        }
         const result = await donationRequestCollection.updateOne(query, { $set: updateDoc });
         res.send(result);
     })
