@@ -6,7 +6,10 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 9000;
 const admin = require("firebase-admin");
-const serviceAccount = require("./red--aid-firebase-admin-key.json");
+const fbKey = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf-8"
+);
+const serviceAccount = JSON.parse(fbKey);
 
 app.use(cors());
 app.use(express.json());
@@ -29,11 +32,11 @@ admin.initializeApp({
 
 async function run() {
   try {
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.connect();
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
 
     const userCollection = client.db("redAid").collection("users");
     const donationRequestCollection = client.db("redAid").collection("donationRequests");
@@ -80,9 +83,51 @@ async function run() {
       }
       next();
     };
+    const varifyVolunteer = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (!user || user?.role !== "volunteer") {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      next();
+    };
+    const varifyAdminVolunteer = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (!user || (user?.role !== "admin" && user?.role !== "volunteer")) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      next();
+    };
 
 
 
+    app.get('/stats',varifyFBToken, varifyAdminVolunteer, async (req, res) => {
+      try {
+        const totalUsers = await userCollection.countDocuments();
+      const totalRequests = await donationRequestCollection.countDocuments();
+      const totalFundResult = await fundCollection.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalFundAmount: {
+              $sum: { $toDouble: "$amount" } 
+            }
+          }
+        }
+      ]).toArray();
+      res.send({
+        totalUsers,
+        totalRequests,
+        totalFundAmount: totalFundResult[0]?.totalFundAmount
+      });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+      })
     /****** donor api *******/
    
     app.get("/donors", async (req, res) => {
@@ -124,7 +169,6 @@ async function run() {
           .limit(limit)
           .toArray();
         result = result.filter((user) => user.email !== req.decoded.email);
-        console.log(result);
         res.send({
           users: result,
           total,
@@ -246,7 +290,6 @@ async function run() {
         const query = { _id: new ObjectId(id) };
         if(updateDoc?.donorEmail) {
           const filter = { email: updateDoc?.donorEmail };
-          console.log(filter);
           const incrementDon = {
             $inc: { donations: 1 },
             $set: { lastDonation: new Date().toISOString().split("T")[0] },
