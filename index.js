@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 9000;
@@ -37,7 +38,7 @@ async function run() {
     const userCollection = client.db("redAid").collection("users");
     const donationRequestCollection = client.db("redAid").collection("donationRequests");
     const blogCollection = client.db("redAid").collection("blogs");
-
+    const fundCollection = client.db("redAid").collection("funds");
 
 
     /****** middleware *******/
@@ -330,6 +331,48 @@ async function run() {
       const id = req.params.id;
       const result = await blogCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
+    });
+
+
+
+    app.get('/funds',varifyFBToken, async (req, res) => {
+      const {page = 1, limit = 10} = req.query;
+      const skip = (page - 1) * limit;
+      
+      const result = await fundCollection.find().skip(skip).limit(Number(limit)).toArray();
+      res.send(result);        
+    });
+
+    app.post('/funds',varifyFBToken, async (req, res) => {
+      const fund = req.body;
+      const result = await fundCollection.insertOne(fund);
+      res.send(result);
+    });
+
+
+
+    // stripe
+    app.post("/create-payment-intent", async (req, res) => {
+      const { amount } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).send({ message: "Invalid amount" });
+      }
+
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: parseInt(amount * 100), // in cents
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (err) {
+        console.error("Stripe error:", err);
+        res.status(500).send({ error: "Failed to create payment intent" });
+      }
     });
 
   } finally {
