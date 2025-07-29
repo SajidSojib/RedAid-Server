@@ -289,7 +289,6 @@ async function run() {
         ...(status && { status }),
         ...(category && { category }),
       };
-
       const totalBlogs = await blogCollection.countDocuments(query);
       const totalPages = Math.ceil(totalBlogs / limit);
       const blogs = await blogCollection
@@ -298,11 +297,17 @@ async function run() {
         .limit(Number(limit))
         .sort({ createdAt: -1 })
         .toArray();
-
       res.send({
         blogs,
         totalPages
       });
+    });
+
+    app.get("/blogs/:id", varifyFBToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await blogCollection.findOne(query);
+      res.send(result);
     });
 
     app.post("/blogs", async (req, res) => {
