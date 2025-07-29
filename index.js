@@ -81,6 +81,29 @@ async function run() {
     };
 
 
+
+    /****** donor api *******/
+   
+    app.get("/donors", async (req, res) => {
+      try {
+        const { bloodGroup, division, district, upazila } = req.query;
+
+        // Build dynamic filter object
+        const filter = { role: "donor", status: "active" };
+        if (bloodGroup) filter.bloodGroup = bloodGroup;
+        if (division) filter.division = division;
+        if (district) filter.district = district;
+        if (upazila) filter.upazila = upazila;
+        const donors = await userCollection.find(filter).toArray();
+        res.send(donors);
+      } catch (error) {
+        console.error("Error fetching donors:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+
+
     /****** user api *******/
 
     // get all users
