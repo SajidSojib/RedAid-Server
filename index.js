@@ -93,12 +93,14 @@ async function run() {
         const query = status ? { status } : {};
         const total = await userCollection.countDocuments(query);
         const pages = Math.ceil(total / limit);
-        const result = await userCollection
+        let result = await userCollection
           .find(query)
           .sort({ createdAt: -1 }) // recent first
           .skip(skip)
           .limit(limit)
           .toArray();
+        result = result.filter((user) => user.email !== req.decoded.email);
+        console.log(result);
         res.send({
           users: result,
           total,
@@ -138,6 +140,16 @@ async function run() {
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.put("/users/:email", varifyFBToken, async (req, res) => {
+      const email = req.params.email;
+      const payload = req.body;
+      const result = await userCollection.updateOne(
+        { email: email },
+        { $set: payload }
+      );
       res.send(result);
     });
 
