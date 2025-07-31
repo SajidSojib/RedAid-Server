@@ -49,12 +49,12 @@ async function run() {
     const varifyFBToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).send({ message: "Unauthorized Access" });
+        return res.status(401).send({ message: "Unauthorized Access1" });
       }
       
       const token = authHeader.split(" ")[1];
       if (!token) {
-        return res.status(401).send({ message: "Unauthorized Access" });
+        return res.status(401).send({ message: "Unauthorized Access2" });
       }
 
       try {
@@ -62,15 +62,17 @@ async function run() {
         req.decoded = decoded;
         next();
       } catch (error) {
-        return res.status(403).send({ message: "Forbidden Access" });
+        return res.status(403).send({ message: "Forbidden Access3" });
       }
     };
 
     const varifyEmail = async (req, res, next) => {
+      console.log('vari email',req.params?.email);
+      console.log('decoded email',req.decoded);
         if(req.decoded.email == req.body?.email || req.decoded.email == req.query?.email || req.decoded.email == req.params?.email) {
             next();
         } else {
-            return res.status(403).send({ message: "Forbidden Access" });
+            return res.status(403).send({ message: "Forbidden Access4" });
         }
     };
 
@@ -179,6 +181,7 @@ async function run() {
     //get user role
     app.get("/users/:email/role", varifyFBToken, varifyEmail, async (req, res) => {
         const email = req.params.email;
+        console.log('body',req.params.email);
         const query = { email };
 
         try {
@@ -237,6 +240,26 @@ async function run() {
 
     // 3 recent donation requests
     // all donation with pegination
+    app.get("/all-donation", async (req, res) => {
+        const status = req.query?.status; // optional
+        const page = parseInt(req.query?.page) || 1;
+        const limit = parseInt(req.query?.limit) || 10;
+        const skip = (page - 1) * limit;
+        const query = status ? { status } : {};
+        const total = await donationRequestCollection.countDocuments(query);
+        const pages = Math.ceil(total / limit);
+        const result = await donationRequestCollection
+          .find(query)
+          .sort({ createdAt: -1 }) // recent first
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+        res.send({
+          donations: result,
+          total,
+          pages,
+        });
+    })
     app.get("/donation-requests",varifyFBToken, async (req, res) => {
         const email = req.query?.email;
         const status = req.query.status; // optional
