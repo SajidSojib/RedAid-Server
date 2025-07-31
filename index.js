@@ -49,12 +49,12 @@ async function run() {
     const varifyFBToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).send({ message: "Unauthorized Access1" });
+        return res.status(401).send({ message: "Unauthorized Access" });
       }
       
       const token = authHeader.split(" ")[1];
       if (!token) {
-        return res.status(401).send({ message: "Unauthorized Access2" });
+        return res.status(401).send({ message: "Unauthorized Access" });
       }
 
       try {
@@ -62,17 +62,15 @@ async function run() {
         req.decoded = decoded;
         next();
       } catch (error) {
-        return res.status(403).send({ message: "Forbidden Access3" });
+        return res.status(403).send({ message: "Forbidden Access" });
       }
     };
 
     const varifyEmail = async (req, res, next) => {
-      console.log('vari email',req.params?.email);
-      console.log('decoded email',req.decoded);
         if(req.decoded.email == req.body?.email || req.decoded.email == req.query?.email || req.decoded.email == req.params?.email) {
             next();
         } else {
-            return res.status(403).send({ message: "Forbidden Access4" });
+            return res.status(403).send({ message: "Forbidden Access" });
         }
     };
 
@@ -179,9 +177,8 @@ async function run() {
     })
 
     //get user role
-    app.get("/users/:email/role", varifyFBToken, varifyEmail, async (req, res) => {
+    app.get("/users/:email/role", varifyFBToken, async (req, res) => {
         const email = req.params.email;
-        console.log('body',req.params.email);
         const query = { email };
 
         try {
