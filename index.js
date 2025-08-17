@@ -240,14 +240,30 @@ async function run() {
     app.get("/all-donation", async (req, res) => {
         const status = req.query?.status; // optional
         const page = parseInt(req.query?.page) || 1;
-        const limit = parseInt(req.query?.limit) || 10;
+        const limit = parseInt(req.query?.limit) || 12;
         const skip = (page - 1) * limit;
         const query = status ? { status } : {};
         const total = await donationRequestCollection.countDocuments(query);
         const pages = Math.ceil(total / limit);
+
+        let sort = {};
+        if(req.query?.sort === 'asc'){
+          sort={ bags: 1 };
+        }
+        if(req.query?.sort === 'desc'){
+          sort={  bags: -1 };
+        }
+
+        if(req.query?.sort2 === 'newest'){
+          sort={ ...sort, createdAt: -1 };
+        }
+        if(req.query?.sort2 === 'oldest'){
+          sort={ ...sort, createdAt: 1 };
+        }
+
         const result = await donationRequestCollection
           .find(query)
-          .sort({ createdAt: -1 }) // recent first
+          .sort(sort) // recent first
           .skip(skip)
           .limit(limit)
           .toArray();

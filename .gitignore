@@ -1,3 +1,4 @@
 node_modules
 .env
 .vercel
+red--aid-firebase-admin-key.json
