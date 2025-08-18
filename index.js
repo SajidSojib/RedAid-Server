@@ -153,7 +153,7 @@ async function run() {
     /****** user api *******/
 
     // get all users
-    app.get("/users", varifyFBToken, varifyAdmin, async (req, res) => {
+    app.get("/users", varifyFBToken, async (req, res) => {
         const status = req.query?.status; // optional
         const page = parseInt(req.query?.page) || 1;
         const limit = parseInt(req.query?.limit) || 10;
